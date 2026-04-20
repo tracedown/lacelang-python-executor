@@ -1,0 +1,103 @@
+# Demo extension: `hookTrace`.
+#
+# Exists solely to observe hook firing. On every hook point it emits a
+# tagged entry into `result.actions.hook_trace` so tests can confirm the
+# order and count of invocations.
+#
+# Also registers a `traceTag` field on the call root so conformance tests
+# can verify that extension-registered call config fields are passed
+# through opaquely to `calls[n].config`.
+
+[extension]
+name    = "hookTrace"
+version = "0.1.0"
+
+[schema.call]
+traceTag = { type = "string" }
+
+[result.actions.hook_trace]
+type = "array<hook_trace_entry>"
+
+[result.types.hook_trace_entry.fields]
+callIndex = "int"
+hook      = "string"
+
+[[rules.rule]]
+name = "on_before_script"
+on   = ["before script"]
+body = """
+emit result.actions.hook_trace <- {
+  callIndex: -1,
+  hook:       "before script"
+}
+"""
+
+[[rules.rule]]
+name = "on_script"
+on   = ["script"]
+body = """
+emit result.actions.hook_trace <- {
+  callIndex: -1,
+  hook:       "script"
+}
+"""
+
+[[rules.rule]]
+name = "on_before_call"
+on   = ["before call"]
+body = """
+emit result.actions.hook_trace <- {
+  callIndex: call.index,
+  hook:       "before call"
+}
+"""
+
+[[rules.rule]]
+name = "on_call"
+on   = ["call"]
+body = """
+emit result.actions.hook_trace <- {
+  callIndex: call.index,
+  hook:       "call"
+}
+"""
+
+[[rules.rule]]
+name = "on_before_expect"
+on   = ["before expect"]
+body = """
+emit result.actions.hook_trace <- {
+  callIndex: call.index,
+  hook:       "before expect"
+}
+"""
+
+[[rules.rule]]
+name = "on_expect"
+on   = ["expect"]
+body = """
+emit result.actions.hook_trace <- {
+  callIndex: call.index,
+  hook:       "expect"
+}
+"""
+
+[[rules.rule]]
+name = "on_before_store"
+on   = ["before store"]
+body = """
+emit result.actions.hook_trace <- {
+  callIndex: call.index,
+  hook:       "before store"
+}
+"""
+
+[[rules.rule]]
+name = "on_store"
+on   = ["store"]
+body = """
+emit result.actions.hook_trace <- {
+  callIndex: call.index,
+  hook:       "store"
+}
+"""

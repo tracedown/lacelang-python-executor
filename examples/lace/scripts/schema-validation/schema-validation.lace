@@ -1,0 +1,5 @@
+// Validate response body shape with a JSON schema.
+
+get("$base_url/json")
+    .expect(status: 200, body: schema($response_schema))
+    .store({ $$title: this.body.json.slideshow.title })

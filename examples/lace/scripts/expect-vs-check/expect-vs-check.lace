@@ -1,0 +1,9 @@
+// .expect() hard-fails and cascades; .check() records but continues.
+
+get("$base_url/status/404")
+    .check(status: 200)
+
+// This call still runs because .check() does not cascade.
+get("$base_url/status/200")
+    .expect(status: 200)
+    .store({ $$final: this.status })

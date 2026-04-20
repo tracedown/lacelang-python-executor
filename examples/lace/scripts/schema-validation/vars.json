@@ -1,0 +1,18 @@
+{
+  "base_url": "https://httpbin.org",
+  "response_schema": {
+    "type": "object",
+    "required": ["slideshow"],
+    "properties": {
+      "slideshow": {
+        "type": "object",
+        "required": ["title", "author"],
+        "properties": {
+          "title": { "type": "string" },
+          "author": { "type": "string" },
+          "slides": { "type": "array" }
+        }
+      }
+    }
+  }
+}

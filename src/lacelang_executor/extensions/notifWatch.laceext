@@ -1,0 +1,31 @@
+# Demo extension: `notifWatch`.
+#
+# Requires `notifCounter`. On every `call` hook it reads what
+# `notifCounter` published this tick and surfaces it on its own action
+# array. The default `after notifCounter` scheduling is what makes this
+# read non-null: the registry topo-sorts notifCounter before notifWatch
+# on the shared `call` hook because of the `require` relationship.
+
+[extension]
+name    = "notifWatch"
+version = "0.1.0"
+require = ["notifCounter"]
+
+[result.actions.notif_watch]
+type = "array<notif_watch_entry>"
+
+[result.types.notif_watch_entry.fields]
+call_index         = "int"
+saw_last_call_index = "int?"
+
+[[rules.rule]]
+name = "echo_counter"
+on   = ["call"]
+body = """
+let $seen = require["notifCounter"]["notifCounter.lastCallIndex"]
+
+emit result.actions.notif_watch <- {
+  call_index: call.index,
+  saw_last_call_index: $seen
+}
+"""

@@ -1,0 +1,25 @@
+# Demo extension: `notifRelay`.
+#
+# Requires `laceNotifications` and uses its exposed `pushNotification`
+# function to register a notification on every successful call. Exists
+# purely to exercise inter-extension exposed-function dispatch in the
+# conformance suite.
+
+[extension]
+name    = "notifRelay"
+version = "0.1.0"
+require = ["laceNotifications"]
+
+[[rules.rule]]
+name = "relay_on_call"
+on   = ["call after laceNotifications"]
+body = """
+when call.outcome eq "success"
+laceNotifications.pushNotification({
+  callIndex:      call.index,
+  conditionIndex: -1,
+  trigger:         "relay",
+  scope:           null,
+  notification:    text("hello from notifRelay")
+})
+"""

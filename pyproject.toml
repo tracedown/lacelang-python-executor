@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lacelang-executor"
+version = "0.1.0"
+description = "Reference Python executor for the Lace probe scripting language. Depends on lacelang-validator for parsing and semantic checks."
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.10"
+authors = [{ name = "lacelang contributors" }]
+keywords = ["lace", "lacelang", "executor", "http", "probe", "monitoring"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Interpreters",
+]
+dependencies = [
+    "lacelang-validator>=0.1,<0.2",
+    "tomli>=2.0; python_version<'3.11'",
+]
+
+[tool.setuptools.package-data]
+lacelang_executor = ["extensions/*.laceext", "extensions/*.config"]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7",
+    "mypy>=1.5",
+    "ruff>=0.1",
+]
+
+[project.scripts]
+lacelang-executor = "lacelang_executor.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/tracedown/lacelang-python-executor"
+Validator = "https://github.com/tracedown/lacelang-python-validator"
+Specification = "https://github.com/tracedown/lacelang"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

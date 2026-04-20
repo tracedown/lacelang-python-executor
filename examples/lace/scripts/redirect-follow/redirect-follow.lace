@@ -1,0 +1,15 @@
+// Follow redirects and verify the final destination.
+
+get("$base_url/redirect/2", {
+    redirects: { follow: true, max: 5 }
+})
+    .expect(status: 200)
+    .store({ $$hops: this.redirects })
+
+// A second call with a tight limit to show redirect-exceeded failure.
+
+get("$base_url/redirect/3", {
+    redirects: { max: 1 },
+    timeout: { ms: 10000, action: "warn" }
+})
+    .check(status: 200)

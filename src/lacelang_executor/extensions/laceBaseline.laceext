@@ -1,0 +1,211 @@
+# laceBaseline — response timing baseline and spike detection
+#
+# Monitors rolling averages of HTTP response timing metrics across runs
+# and detects spikes (metric > average x multiplier). Dispatches a
+# notification via laceNotifications for each spiked metric. Stats
+# travel between runs via result.runVars — the backend persists the
+# result and passes it as `prev` on the next run.
+#
+# The extension is fully responsible for computing the rolling average,
+# including spike_action logic. The backend stores the stats to the var
+# and processes the dispatched notifications (grouping by call/scope).
+#
+# Bundled with every Lace executor as `builtin:laceBaseline`.
+
+[extension]
+name    = "laceBaseline"
+version = "1.0.0"
+require = ["laceNotifications"]
+
+# ── Functions ─────────────────────────────────────────────────────────
+
+# Pure threshold check for a single metric. Returns true if the metric
+# exceeds average * multiplier. No side effects — does not dispatch
+# notifications. Used by check_any_spike for spike_action skip logic.
+[functions.metric_spikes]
+params = ["stats", "count", "metric_name", "actual", "multiplier"]
+body = """
+when is_null(actual)
+return false
+
+let $sum = map_get(stats.sums, metric_name)
+when is_null($sum)
+return false
+
+let $avg = $sum / count
+when $avg lte 0
+return false
+
+return actual gt $avg * multiplier
+"""
+
+# Returns true if any tracked metric in the response would spike
+# against the baseline. Pure check — no notifications dispatched.
+[functions.check_any_spike]
+params = ["stats", "response", "multiplier"]
+body = """
+when is_null(stats)
+return false
+
+when is_null(response)
+return false
+
+let $count = stats.count
+when is_null($count)
+return false
+
+when $count lt 1
+return false
+
+when metric_spikes(stats, $count, "responseTimeMs", response.responseTimeMs, multiplier)
+return true
+
+when metric_spikes(stats, $count, "dnsMs", response.dnsMs, multiplier)
+return true
+
+when metric_spikes(stats, $count, "connectMs", response.connectMs, multiplier)
+return true
+
+when metric_spikes(stats, $count, "tlsMs", response.tlsMs, multiplier)
+return true
+
+when metric_spikes(stats, $count, "ttfbMs", response.ttfbMs, multiplier)
+return true
+
+when metric_spikes(stats, $count, "transferMs", response.transferMs, multiplier)
+return true
+
+when metric_spikes(stats, $count, "sizeBytes", response.sizeBytes, multiplier)
+return true
+
+return false
+"""
+
+# Check whether a single metric exceeds the baseline average by the
+# configured multiplier. If so, dispatch a structured notification via
+# laceNotifications. All spike events live in actions.notifications
+# (trigger = "baseline_spike").
+[functions.check_spike]
+params  = ["stats", "metric_name", "actual", "call_index", "multiplier"]
+exposed = true
+body = """
+when is_null(actual)
+return null
+
+when is_null(stats)
+return null
+
+let $count = stats.count
+when is_null($count)
+return null
+
+when $count lt 1
+return null
+
+let $sum = map_get(stats.sums, metric_name)
+when is_null($sum)
+return null
+
+let $avg = $sum / $count
+when $avg lte 0
+return null
+
+let $threshold = $avg * multiplier
+when actual lte $threshold
+return null
+
+laceNotifications.pushNotification({
+  callIndex:      call_index,
+  conditionIndex: -1,
+  trigger:         "baseline_spike",
+  scope:           metric_name,
+  notification:    structured({
+    metric:     metric_name,
+    actual:     actual,
+    average:    $avg,
+    threshold:  $threshold,
+    multiplier: multiplier
+  })
+})
+
+return true
+"""
+
+# Accumulate response timing metrics from the current run's calls into
+# the rolling stats. Handles first-run (null prev_stats) by initialising
+# from zeros. When spike_action is "skip", calls where any metric would
+# spike are excluded from the rolling average.
+[functions.accumulate_stats]
+params = ["prev_stats", "calls", "spike_action", "spike_multiplier"]
+body = """
+let $count = is_null(prev_stats) ? 0 : (is_null(prev_stats.count) ? 0 : prev_stats.count)
+let $s_rt  = is_null(prev_stats) ? 0.0 : (is_null(prev_stats.sums) ? 0.0 : (is_null(prev_stats.sums.responseTimeMs) ? 0.0 : prev_stats.sums.responseTimeMs))
+let $s_dns = is_null(prev_stats) ? 0.0 : (is_null(prev_stats.sums) ? 0.0 : (is_null(prev_stats.sums.dnsMs) ? 0.0 : prev_stats.sums.dnsMs))
+let $s_con = is_null(prev_stats) ? 0.0 : (is_null(prev_stats.sums) ? 0.0 : (is_null(prev_stats.sums.connectMs) ? 0.0 : prev_stats.sums.connectMs))
+let $s_tls = is_null(prev_stats) ? 0.0 : (is_null(prev_stats.sums) ? 0.0 : (is_null(prev_stats.sums.tlsMs) ? 0.0 : prev_stats.sums.tlsMs))
+let $s_ttfb = is_null(prev_stats) ? 0.0 : (is_null(prev_stats.sums) ? 0.0 : (is_null(prev_stats.sums.ttfbMs) ? 0.0 : prev_stats.sums.ttfbMs))
+let $s_xfer = is_null(prev_stats) ? 0.0 : (is_null(prev_stats.sums) ? 0.0 : (is_null(prev_stats.sums.transferMs) ? 0.0 : prev_stats.sums.transferMs))
+let $s_size = is_null(prev_stats) ? 0.0 : (is_null(prev_stats.sums) ? 0.0 : (is_null(prev_stats.sums.sizeBytes) ? 0.0 : prev_stats.sums.sizeBytes))
+
+for $call in calls:
+  when $call.outcome eq "success":
+    when not is_null($call.response):
+      let $skip = spike_action eq "skip" ? check_any_spike(prev_stats, $call.response, spike_multiplier) : false
+      when not $skip:
+        set $count = $count + 1
+        set $s_rt  = $s_rt  + (is_null($call.response.responseTimeMs) ? 0.0 : $call.response.responseTimeMs)
+        set $s_dns = $s_dns + (is_null($call.response.dnsMs) ? 0.0 : $call.response.dnsMs)
+        set $s_con = $s_con + (is_null($call.response.connectMs) ? 0.0 : $call.response.connectMs)
+        set $s_tls = $s_tls + (is_null($call.response.tlsMs) ? 0.0 : $call.response.tlsMs)
+        set $s_ttfb = $s_ttfb + (is_null($call.response.ttfbMs) ? 0.0 : $call.response.ttfbMs)
+        set $s_xfer = $s_xfer + (is_null($call.response.transferMs) ? 0.0 : $call.response.transferMs)
+        set $s_size = $s_size + (is_null($call.response.sizeBytes) ? 0.0 : $call.response.sizeBytes)
+
+return {
+  count: $count,
+  sums: {
+    responseTimeMs: $s_rt,
+    dnsMs:          $s_dns,
+    connectMs:      $s_con,
+    tlsMs:          $s_tls,
+    ttfbMs:         $s_ttfb,
+    transferMs:     $s_xfer,
+    sizeBytes:      $s_size
+  }
+}
+"""
+
+# ── Rules ─────────────────────────────────────────────────────────────
+
+[[rules.rule]]
+name = "detect_spikes_per_call"
+on   = ["call after laceNotifications"]
+body = """
+when call.outcome eq "success"
+when not is_null(call.response)
+let $stats = prev.runVars["laceBaseline.stats"]
+when not is_null($stats)
+when not is_null($stats.count)
+when $stats.count gte config.min_entries
+let $mult = config.spike_multiplier
+let $resp = call.response
+check_spike($stats, "responseTimeMs", $resp.responseTimeMs, call.index, $mult)
+check_spike($stats, "dnsMs", $resp.dnsMs, call.index, $mult)
+check_spike($stats, "connectMs", $resp.connectMs, call.index, $mult)
+check_spike($stats, "tlsMs", $resp.tlsMs, call.index, $mult)
+check_spike($stats, "ttfbMs", $resp.ttfbMs, call.index, $mult)
+check_spike($stats, "transferMs", $resp.transferMs, call.index, $mult)
+check_spike($stats, "sizeBytes", $resp.sizeBytes, call.index, $mult)
+"""
+
+[[rules.rule]]
+name = "update_stats"
+on   = ["script"]
+body = """
+let $prev_stats = prev.runVars["laceBaseline.stats"]
+let $new_stats = accumulate_stats($prev_stats, result.calls, config.spike_action, config.spike_multiplier)
+when not is_null($new_stats)
+emit result.runVars <- {
+  "laceBaseline.stats": $new_stats
+}
+"""

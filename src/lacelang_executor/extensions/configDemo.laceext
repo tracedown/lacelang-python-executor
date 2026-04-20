@@ -1,0 +1,29 @@
+# Test extension: `configDemo`.
+#
+# Echoes extension config values to result.actions so conformance tests
+# can verify the config defaults / override merge mechanism.
+
+[extension]
+name    = "configDemo"
+version = "0.1.0"
+
+[result.actions.config_echo]
+type = "array<config_echo_entry>"
+
+[result.types.config_echo_entry.fields]
+key   = "string"
+value = "any"
+
+[[rules.rule]]
+name = "echo_config"
+on   = ["before script"]
+body = """
+emit result.actions.config_echo <- {
+  key:   "greeting",
+  value: config.greeting
+}
+emit result.actions.config_echo <- {
+  key:   "threshold",
+  value: config.threshold
+}
+"""

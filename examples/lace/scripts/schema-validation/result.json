@@ -1,0 +1,157 @@
+{
+  "outcome": "success",
+  "startedAt": "2026-01-01T00:00:00.000Z",
+  "endedAt": "2026-01-01T00:00:00.000Z",
+  "elapsedMs": 0,
+  "runVars": {
+    "title": null
+  },
+  "calls": [
+    {
+      "index": 0,
+      "outcome": "success",
+      "startedAt": "2026-01-01T00:00:00.000Z",
+      "endedAt": "2026-01-01T00:00:00.000Z",
+      "request": {
+        "url": "https://httpbin.org/json",
+        "method": "get",
+        "headers": {
+          "User-Agent": "lace-probe/0.1.0 (lacelang-python)"
+        },
+        "bodyPath": null
+      },
+      "response": {
+        "status": 200,
+        "statusText": "OK",
+        "headers": {
+          "date": "...",
+          "content-type": "application/json",
+          "content-length": "429",
+          "connection": "keep-alive",
+          "server": "...",
+          "access-control-allow-origin": "...",
+          "access-control-allow-credentials": "..."
+        },
+        "bodyPath": null,
+        "responseTimeMs": 0,
+        "dnsMs": 0,
+        "connectMs": 0,
+        "tlsMs": 0,
+        "ttfbMs": 0,
+        "transferMs": 0,
+        "sizeBytes": 429,
+        "dns": {
+          "resolvedIps": [
+            "0.0.0.0"
+          ],
+          "resolvedIp": "0.0.0.0"
+        },
+        "tls": {
+          "protocol": "TLSv1.2",
+          "cipher": "ECDHE-RSA-AES128-GCM-SHA256",
+          "alpn": "http/1.1",
+          "certificate": {
+            "subject": {
+              "cn": "httpbin.org"
+            },
+            "subjectAltNames": [
+              "DNS:httpbin.org",
+              "DNS:*.httpbin.org"
+            ],
+            "issuer": {
+              "cn": "Amazon RSA 2048 M03"
+            },
+            "notBefore": "2025-01-01T00:00:00Z",
+            "notAfter": "2026-01-01T00:00:00Z"
+          }
+        }
+      },
+      "redirects": [],
+      "assertions": [
+        {
+          "method": "expect",
+          "scope": "status",
+          "op": "eq",
+          "outcome": "passed",
+          "actual": 200,
+          "expected": 200,
+          "options": null
+        },
+        {
+          "method": "expect",
+          "scope": "body",
+          "op": "eq",
+          "outcome": "passed",
+          "actual": {
+            "slideshow": {
+              "author": "Yours Truly",
+              "date": "date of publication",
+              "slides": [
+                {
+                  "title": "Wake up to WonderWidgets!",
+                  "type": "all"
+                },
+                {
+                  "items": [
+                    "Why <em>WonderWidgets</em> are great",
+                    "Who <em>buys</em> WonderWidgets"
+                  ],
+                  "title": "Overview",
+                  "type": "all"
+                }
+              ],
+              "title": "Sample Slide Show"
+            }
+          },
+          "expected": {
+            "__lace_schema__": true,
+            "schema": {
+              "type": "object",
+              "required": [
+                "slideshow"
+              ],
+              "properties": {
+                "slideshow": {
+                  "type": "object",
+                  "required": [
+                    "title",
+                    "author"
+                  ],
+                  "properties": {
+                    "title": {
+                      "type": "string"
+                    },
+                    "author": {
+                      "type": "string"
+                    },
+                    "slides": {
+                      "type": "array"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "options": null
+        }
+      ],
+      "config": {
+        "timeout": {
+          "ms": 30000,
+          "action": "fail",
+          "retries": 0
+        },
+        "redirects": {
+          "follow": true,
+          "max": 10
+        },
+        "security": {
+          "rejectInvalidCerts": true
+        }
+      },
+      "warnings": [],
+      "error": null
+    }
+  ],
+  "actions": {}
+}

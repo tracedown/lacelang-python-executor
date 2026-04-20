@@ -1,0 +1,5 @@
+{
+  "base_url": "https://httpbin.org",
+  "username": "testuser",
+  "password": "testpass"
+}

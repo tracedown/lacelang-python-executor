@@ -1,0 +1,21 @@
+# Executor manifest for the Python executor.
+# See specs/schemas/executor-manifest.json for the full schema.
+
+[executor]
+name        = "lacelang-executor"
+version     = "0.1.0"
+language    = "python"
+conforms_to = ">=0.0.1 <0.9.0"
+
+[adapter]
+parse    = "python3 -m lacelang_executor parse {script}"
+validate = "python3 -m lacelang_executor validate {script} --vars-list {vars_list} --context {context}"
+run      = "python3 -m lacelang_executor run {script} --vars {vars} --prev {prev}"
+timeout_seconds = 30
+
+# Per-subprocess env overrides. Useful for pointing the executor at a
+# sibling install or enabling feature flags.
+[adapter.env]
+# LACE_BODIES_DIR = "/tmp/lace-bodies"
+[conformance]
+omit = ["extensions"]

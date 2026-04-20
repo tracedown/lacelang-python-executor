@@ -1,0 +1,13 @@
+// Multi-step auth flow: login, use token, verify session.
+
+post("$base_url/post", {
+    body: json({ username: "$username", password: "$password" })
+})
+    .expect(status: 200)
+    .store({ $$token: this.body.json.username })
+
+get("$base_url/get", {
+    headers: { "Authorization": "Bearer $$token" }
+})
+    .expect(status: 200)
+    .store({ $$session_verified: this.status })
