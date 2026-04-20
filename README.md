@@ -11,7 +11,7 @@ verified against this implementation before each spec release.
 Parsing and semantic validation are delegated to
 [`lacelang-validator`](https://github.com/tracedown/lacelang-python-validator) — this package contains
 only the runtime (HTTP client, assertion evaluation, cookie jars, extension
-dispatch). See `lace-spec.md` §16 for the validator / executor package
+dispatch). See `lace-spec.md` §15 for the validator / executor package
 separation rule.
 
 ## Install
