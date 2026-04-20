@@ -1,0 +1,23 @@
+# Demo extension: `notifCounter`.
+#
+# Publishes a small numeric run_var on each `call` hook so a dependent
+# extension can observe it. This is the "producer" half of the demo pair;
+# `notifWatch` is the "consumer" (reads notifCounter's var through the
+# `require` base).
+#
+# The extension name is `notifCounter` rather than `tickCounter` so it
+# reads naturally alongside `laceNotifications`, but it has no actual
+# coupling to notifications — any extension could read its published var.
+
+[extension]
+name    = "notifCounter"
+version = "0.1.0"
+
+[[rules.rule]]
+name = "bump_on_call"
+on   = ["call"]
+body = """
+emit result.runVars <- {
+  "notifCounter.lastCallIndex": call.index
+}
+"""

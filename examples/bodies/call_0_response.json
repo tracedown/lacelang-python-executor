@@ -1,0 +1,11 @@
+{
+  "args": {}, 
+  "headers": {
+    "Accept-Encoding": "identity", 
+    "Host": "httpbin.org", 
+    "User-Agent": "lace-probe/0.1.0 (lacelang-python)", 
+    "X-Amzn-Trace-Id": "Root=1-69e621aa-47a789136d3b25f46c33b11e"
+  }, 
+  "origin": "193.77.226.238", 
+  "url": "https://httpbin.org/get"
+}

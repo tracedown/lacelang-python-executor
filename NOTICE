@@ -1,0 +1,23 @@
+lacelang-executor
+Copyright 2026 lacelang contributors
+
+This product includes software developed by the Lace project
+(https://github.com/tracedown/lacelang).
+
+RESPONSIBLE USE
+
+This software is designed for legitimate HTTP monitoring, uptime
+checking, and API testing against endpoints you own or have explicit
+authorization to probe. The user is solely responsible for ensuring
+that their use of this software complies with all applicable laws,
+regulations, terms of service, and acceptable use policies.
+
+Using this software to send unsolicited, unauthorized, or excessive
+requests to third-party services — including but not limited to
+denial-of-service attacks, unauthorized vulnerability scanning, or
+any form of abuse — is strictly prohibited and is the sole
+responsibility of the user. The authors and contributors of this
+software bear no liability for any misuse.
+
+By using this software, you acknowledge that you have obtained proper
+authorization for all endpoints targeted by your probes.

@@ -1,0 +1,279 @@
+# laceNotifications — reference Lace extension
+#
+# Adds notification dispatch for assertion failures and call timeouts.
+# Reference implementation per lace-extensions.md §12.
+#
+# Bundled with every Lace executor as `builtin:laceNotifications`.
+#
+# NOTE: lace-extensions.md §12 shows multi-line inline TOML tables which
+# are not valid TOML 1.0 (inline tables must fit on a single line). This
+# file uses standard TOML sub-tables instead. The semantic content is
+# identical to the spec example.
+
+[extension]
+name    = "laceNotifications"
+version = "1.0.0"
+
+# ── Schema additions ──────────────────────────────────────────────────────
+
+[schema.scope_options]
+silentOnRepeat = { type = "bool", default = "true" }
+notification   = { type = "notification_val" }
+
+[schema.condition_options]
+silentOnRepeat = { type = "bool", default = "true" }
+notification   = { type = "notification_val" }
+
+[schema.timeout]
+notification = { type = "notification_val" }
+
+# ── Custom types ──────────────────────────────────────────────────────────
+
+[types.notification_val]
+one_of = [
+  { tag = "template",   fields = { name  = "string" } },
+  { tag = "text",       fields = { value = "string" } },
+  { tag = "structured", fields = { data  = "any" } },
+  { tag = "op_map",     fields = { ops   = "map<string, notification_val>" } }
+]
+
+# ── Result additions ──────────────────────────────────────────────────────
+
+[result.actions.notifications]
+type = "array<notification_event>"
+
+[result.types.notification_event.fields]
+callIndex      = "int"
+conditionIndex = "int"
+trigger         = "string"
+scope           = "string?"
+notification    = "notification_val"
+
+# ── Functions ─────────────────────────────────────────────────────────────
+
+# Exposed: any extension that `require = ["laceNotifications"]` may call
+# `laceNotifications.pushNotification({...})` to append a typed event to
+# `result.actions.notifications`. The caller passes a pre-built event
+# object with the fields declared in `[result.types.notification_event]`;
+# this function does not validate shape — ill-formed events surface as
+# malformed notification_event entries downstream.
+[functions.pushNotification]
+params = ["event"]
+exposed = true
+body = """
+emit result.actions.notifications <- {
+  callIndex:      event.callIndex,
+  conditionIndex: event.conditionIndex,
+  trigger:         event.trigger,
+  scope:           event.scope,
+  notification:    event.notification
+}
+return event
+"""
+
+[functions.resolve_scope_notif]
+params = ["notif_cfg", "actual", "expected", "op"]
+body   = """
+when is_null(notif_cfg)
+return null
+
+when notif_cfg.tag eq "template" or notif_cfg.tag eq "text"
+return notif_cfg
+
+return map_match(notif_cfg.ops, actual, expected, op)
+"""
+
+[functions.resolve_assert_notif]
+params = ["notif_cfg", "lhs", "rhs"]
+body   = """
+when is_null(notif_cfg)
+return null
+
+when notif_cfg.tag eq "template" or notif_cfg.tag eq "text"
+return notif_cfg
+
+let $rel = compare(lhs, rhs)
+when is_null($rel)
+return null
+
+return map_get(notif_cfg.ops, $rel)
+"""
+
+[functions.is_silent]
+params = ["options", "prev_outcome"]
+body   = """
+when is_null(options)
+return false
+
+when options.silentOnRepeat neq true
+return false
+
+return prev_outcome eq "failed"
+"""
+
+# ── Rules ─────────────────────────────────────────────────────────────────
+#
+# Every assertion failure emits a notification. If the script provides a
+# custom `notification` option on the scope/condition, that value is used
+# (after op_map resolution if applicable). Otherwise, a default
+# `structured()` notification is emitted with the raw failure data — the
+# backend formats it however it chooses.
+
+[[rules.rule]]
+name = "scope_expect_custom_notifications"
+on   = ["expect"]
+body = """
+when scope.outcome eq "failed"
+let $notif_cfg = scope.options?.notification
+when not is_null($notif_cfg)
+let $prev_scope = prev?.calls[call.index]?.assertions[? $.scope eq scope.name]
+let $silent = is_silent(scope.options, $prev_scope?.outcome)
+when not $silent
+let $notif = resolve_scope_notif($notif_cfg, scope.actual, scope.value, scope.op)
+when not is_null($notif)
+emit result.actions.notifications <- {
+  callIndex:      call.index,
+  conditionIndex: -1,
+  trigger:         "expect",
+  scope:           scope.name,
+  notification:    $notif
+}
+"""
+
+[[rules.rule]]
+name = "scope_expect_default_notifications"
+on   = ["expect"]
+body = """
+when scope.outcome eq "failed"
+when is_null(scope.options?.notification)
+let $prev_scope = prev?.calls[call.index]?.assertions[? $.scope eq scope.name]
+let $silent = is_silent(scope.options, $prev_scope?.outcome)
+when not $silent
+emit result.actions.notifications <- {
+  callIndex:      call.index,
+  conditionIndex: -1,
+  trigger:         "expect",
+  scope:           scope.name,
+  notification:    structured({
+    scope:    scope.name,
+    op:       scope.op,
+    expected: scope.value,
+    actual:   scope.actual
+  })
+}
+"""
+
+[[rules.rule]]
+name = "scope_check_custom_notifications"
+on   = ["check"]
+body = """
+when scope.outcome eq "failed"
+let $notif_cfg = scope.options?.notification
+when not is_null($notif_cfg)
+let $prev_scope = prev?.calls[call.index]?.assertions[? $.scope eq scope.name]
+let $silent = is_silent(scope.options, $prev_scope?.outcome)
+when not $silent
+let $notif = resolve_scope_notif($notif_cfg, scope.actual, scope.value, scope.op)
+when not is_null($notif)
+emit result.actions.notifications <- {
+  callIndex:      call.index,
+  conditionIndex: -1,
+  trigger:         "check",
+  scope:           scope.name,
+  notification:    $notif
+}
+"""
+
+[[rules.rule]]
+name = "scope_check_default_notifications"
+on   = ["check"]
+body = """
+when scope.outcome eq "failed"
+when is_null(scope.options?.notification)
+let $prev_scope = prev?.calls[call.index]?.assertions[? $.scope eq scope.name]
+let $silent = is_silent(scope.options, $prev_scope?.outcome)
+when not $silent
+emit result.actions.notifications <- {
+  callIndex:      call.index,
+  conditionIndex: -1,
+  trigger:         "check",
+  scope:           scope.name,
+  notification:    structured({
+    scope:    scope.name,
+    op:       scope.op,
+    expected: scope.value,
+    actual:   scope.actual
+  })
+}
+"""
+
+[[rules.rule]]
+name = "assert_custom_notifications"
+on   = ["assert"]
+body = """
+when condition.outcome eq "failed"
+let $notif_cfg = condition.options?.notification
+when not is_null($notif_cfg)
+let $prev_a = prev?.calls[call.index]?.assertions[condition.index]
+let $silent = is_silent(condition.options, $prev_a?.outcome)
+when not $silent
+let $notif = resolve_assert_notif($notif_cfg, condition.actualLhs, condition.actualRhs)
+when not is_null($notif)
+emit result.actions.notifications <- {
+  callIndex:      call.index,
+  conditionIndex: condition.index,
+  trigger:         "assert",
+  notification:    $notif
+}
+"""
+
+[[rules.rule]]
+name = "assert_default_notifications"
+on   = ["assert"]
+body = """
+when condition.outcome eq "failed"
+when is_null(condition.options?.notification)
+let $prev_a = prev?.calls[call.index]?.assertions[condition.index]
+let $silent = is_silent(condition.options, $prev_a?.outcome)
+when not $silent
+emit result.actions.notifications <- {
+  callIndex:      call.index,
+  conditionIndex: condition.index,
+  trigger:         "assert",
+  notification:    structured({
+    kind:       condition.kind,
+    expression: condition.expression,
+    actualLhs:  condition.actualLhs,
+    actualRhs:  condition.actualRhs
+  })
+}
+"""
+
+[[rules.rule]]
+name = "timeout_custom_notifications"
+on   = ["call"]
+body = """
+when call.outcome eq "timeout"
+let $notif_cfg = call.config.timeout?.notification
+when not is_null($notif_cfg)
+emit result.actions.notifications <- {
+  callIndex:      call.index,
+  conditionIndex: -1,
+  trigger:         "timeout",
+  notification:    $notif_cfg
+}
+"""
+
+[[rules.rule]]
+name = "timeout_default_notifications"
+on   = ["call"]
+body = """
+when call.outcome eq "timeout"
+when is_null(call.config.timeout?.notification)
+emit result.actions.notifications <- {
+  callIndex:      call.index,
+  conditionIndex: -1,
+  trigger:         "timeout",
+  notification:    text(config.timeout_message)
+}
+"""

@@ -1,0 +1,8 @@
+// Cookie jar: first call sets a cookie via redirect, second call reads it back.
+// The default jar persists cookies across calls within the same run.
+
+get("$base_url/cookies/set/session_id/abc123")
+    .expect(status: [200, 302])
+
+get("$base_url/cookies")
+    .expect(status: 200)

@@ -1,0 +1,193 @@
+{
+  "outcome": "success",
+  "startedAt": "2026-01-01T00:00:00.000Z",
+  "endedAt": "2026-01-01T00:00:00.000Z",
+  "elapsedMs": 0,
+  "runVars": {},
+  "calls": [
+    {
+      "index": 0,
+      "outcome": "success",
+      "startedAt": "2026-01-01T00:00:00.000Z",
+      "endedAt": "2026-01-01T00:00:00.000Z",
+      "request": {
+        "url": "https://httpbin.org/cookies/set/session_id/abc123",
+        "method": "get",
+        "headers": {
+          "User-Agent": "lace-probe/0.1.0 (lacelang-python)",
+          "Cookie": "..."
+        },
+        "bodyPath": null
+      },
+      "response": {
+        "status": 200,
+        "statusText": "OK",
+        "headers": {
+          "date": "...",
+          "content-type": "application/json",
+          "content-length": "50",
+          "connection": "keep-alive",
+          "server": "...",
+          "access-control-allow-origin": "...",
+          "access-control-allow-credentials": "..."
+        },
+        "bodyPath": null,
+        "responseTimeMs": 0,
+        "dnsMs": 0,
+        "connectMs": 0,
+        "tlsMs": 0,
+        "ttfbMs": 0,
+        "transferMs": 0,
+        "sizeBytes": 50,
+        "dns": {
+          "resolvedIps": [
+            "0.0.0.0"
+          ],
+          "resolvedIp": "0.0.0.0"
+        },
+        "tls": {
+          "protocol": "TLSv1.2",
+          "cipher": "ECDHE-RSA-AES128-GCM-SHA256",
+          "alpn": "http/1.1",
+          "certificate": {
+            "subject": {
+              "cn": "httpbin.org"
+            },
+            "subjectAltNames": [
+              "DNS:httpbin.org",
+              "DNS:*.httpbin.org"
+            ],
+            "issuer": {
+              "cn": "Amazon RSA 2048 M03"
+            },
+            "notBefore": "2025-01-01T00:00:00Z",
+            "notAfter": "2026-01-01T00:00:00Z"
+          }
+        }
+      },
+      "redirects": [
+        "https://httpbin.org/cookies"
+      ],
+      "assertions": [
+        {
+          "method": "expect",
+          "scope": "status",
+          "op": "eq",
+          "outcome": "passed",
+          "actual": 200,
+          "expected": [
+            200,
+            302
+          ],
+          "options": null
+        }
+      ],
+      "config": {
+        "timeout": {
+          "ms": 30000,
+          "action": "fail",
+          "retries": 0
+        },
+        "redirects": {
+          "follow": true,
+          "max": 10
+        },
+        "security": {
+          "rejectInvalidCerts": true
+        }
+      },
+      "warnings": [],
+      "error": null
+    },
+    {
+      "index": 1,
+      "outcome": "success",
+      "startedAt": "2026-01-01T00:00:00.000Z",
+      "endedAt": "2026-01-01T00:00:00.000Z",
+      "request": {
+        "url": "https://httpbin.org/cookies",
+        "method": "get",
+        "headers": {
+          "User-Agent": "lace-probe/0.1.0 (lacelang-python)",
+          "Cookie": "..."
+        },
+        "bodyPath": null
+      },
+      "response": {
+        "status": 200,
+        "statusText": "OK",
+        "headers": {
+          "date": "...",
+          "content-type": "application/json",
+          "content-length": "50",
+          "connection": "keep-alive",
+          "server": "...",
+          "access-control-allow-origin": "...",
+          "access-control-allow-credentials": "..."
+        },
+        "bodyPath": null,
+        "responseTimeMs": 0,
+        "dnsMs": 0,
+        "connectMs": 0,
+        "tlsMs": 0,
+        "ttfbMs": 0,
+        "transferMs": 0,
+        "sizeBytes": 50,
+        "dns": {
+          "resolvedIps": [
+            "0.0.0.0"
+          ],
+          "resolvedIp": "0.0.0.0"
+        },
+        "tls": {
+          "protocol": "TLSv1.2",
+          "cipher": "ECDHE-RSA-AES128-GCM-SHA256",
+          "alpn": "http/1.1",
+          "certificate": {
+            "subject": {
+              "cn": "httpbin.org"
+            },
+            "subjectAltNames": [
+              "DNS:httpbin.org",
+              "DNS:*.httpbin.org"
+            ],
+            "issuer": {
+              "cn": "Amazon RSA 2048 M03"
+            },
+            "notBefore": "2025-01-01T00:00:00Z",
+            "notAfter": "2026-01-01T00:00:00Z"
+          }
+        }
+      },
+      "redirects": [],
+      "assertions": [
+        {
+          "method": "expect",
+          "scope": "status",
+          "op": "eq",
+          "outcome": "passed",
+          "actual": 200,
+          "expected": 200,
+          "options": null
+        }
+      ],
+      "config": {
+        "timeout": {
+          "ms": 30000,
+          "action": "fail",
+          "retries": 0
+        },
+        "redirects": {
+          "follow": true,
+          "max": 10
+        },
+        "security": {
+          "rejectInvalidCerts": true
+        }
+      },
+      "warnings": [],
+      "error": null
+    }
+  ],
+  "actions": {}
+}

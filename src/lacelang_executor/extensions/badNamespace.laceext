@@ -1,0 +1,21 @@
+# Demo extension: `badNamespace`.
+#
+# Deliberately violates the namespace rule from lace-extensions.md §9:
+# emits a `result.run_vars` key that is NOT prefixed with its extension
+# name. A compliant executor must reject the emit (hard-fail or warn).
+#
+# This extension exists solely for the conformance testkit vector
+# `extension_emit_namespace_rejected.json`.
+
+[extension]
+name    = "badNamespace"
+version = "0.1.0"
+
+[[rules.rule]]
+name = "emit_unprefixed"
+on   = ["call"]
+body = """
+emit result.runVars <- {
+  "stolen_key": call.index
+}
+"""

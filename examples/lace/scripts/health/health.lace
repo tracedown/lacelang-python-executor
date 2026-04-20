@@ -1,0 +1,3 @@
+get("$base_url/status/200")
+    .expect(status: 200)
+    .store({ $$health_status: this.status })
