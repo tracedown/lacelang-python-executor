@@ -435,7 +435,6 @@ def _run_call(
         if body_too_large:
             response_rec["bodyNotCapturedReason"] = "bodyTooLarge"
         elif body_path is None:
-            # Empty or absent body — nothing to capture.
             response_rec["bodyNotCapturedReason"] = "notRequested"
         _absorb_response_cookies(active_jar, env, resp.headers)
         env.this = _build_this(resp, response_rec, redirects_list)
@@ -471,7 +470,7 @@ def _run_call(
         "warnings": warnings,
         "error": error,
     }
-    # Fire `on call` post-hook so extensions see the final record
+    # Fire `on call` post-hook — hooks see the full resolved config
     # (e.g. timeout_notifications rule inspects call.outcome + call.config).
     env.registry.fire_hook("call", {
         "call": {
@@ -834,32 +833,26 @@ def _resolve_timeout(cfg: dict[str, Any]) -> tuple[float, str, int]:
 def _resolve_call_config(cfg: dict[str, Any], env: _Env) -> dict[str, Any]:
     """Build the fully-resolved call config with all spec defaults applied.
 
-    Spec §9.2: the call record `config` field must be "Resolved call config
-    (after defaults applied)." This means every default from §3.2 is present
-    even when the call AST omits the field entirely.
-
-    The resolved config is used both for execution logic and for the emitted
-    call record, ensuring the record accurately reflects what was used.
+    Spec §9.2: the call record `config` field must include resolved defaults.
+    Extension fields are preserved under `config.extensions` (spec §3.2).
     """
-    # Start with the raw AST config resolved through _resolve_node (which
-    # evaluates AST expressions and flattens extension fields).
     resolved = _resolve_node(cfg, env)
 
     # Timeout defaults (§3.2)
-    timeout_section = resolved.get("timeout") if isinstance(resolved.get("timeout"), dict) else {}
+    timeout_section = dict(resolved.get("timeout") if isinstance(resolved.get("timeout"), dict) else {})
     timeout_section.setdefault("ms", DEFAULT_TIMEOUT_MS)
     timeout_section.setdefault("action", DEFAULT_TIMEOUT_ACTION)
     timeout_section.setdefault("retries", DEFAULT_TIMEOUT_RETRIES)
     resolved["timeout"] = timeout_section
 
     # Redirect defaults (§3.2, §11)
-    redirect_section = resolved.get("redirects") if isinstance(resolved.get("redirects"), dict) else {}
+    redirect_section = dict(resolved.get("redirects") if isinstance(resolved.get("redirects"), dict) else {})
     redirect_section.setdefault("follow", DEFAULT_FOLLOW_REDIRECTS)
     redirect_section.setdefault("max", env.default_max_redirects)
     resolved["redirects"] = redirect_section
 
     # Security defaults (§3.2)
-    security_section = resolved.get("security") if isinstance(resolved.get("security"), dict) else {}
+    security_section = dict(resolved.get("security") if isinstance(resolved.get("security"), dict) else {})
     security_section.setdefault("rejectInvalidCerts", DEFAULT_REJECT_INVALID_CERTS)
     resolved["security"] = security_section
 
@@ -1527,9 +1520,11 @@ def _resolve_node(node: Any, env: _Env) -> Any:
             if k.startswith("__"):
                 continue
             if k == "extensions" and isinstance(v, dict):
-                # Promote extension fields to the current level.
+                # Preserve extensions sub-object structure (spec §3.2).
+                ext_out = {}
                 for ek, ev in v.items():
-                    out[ek] = _resolve_node(ev, env)
+                    ext_out[ek] = _resolve_node(ev, env)
+                out["extensions"] = ext_out
                 continue
             out[k] = _resolve_node(v, env)
         return out
