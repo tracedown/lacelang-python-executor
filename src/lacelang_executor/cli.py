@@ -29,6 +29,7 @@ from lacelang_validator.validator import validate
 
 from lacelang_executor import __version__
 from lacelang_executor.config import ConfigError, load_config
+from lacelang_executor.executor import _default_bodies_dir
 
 
 def _parse_var_kv(raw: str) -> tuple[str, Any]:
@@ -171,6 +172,14 @@ def cmd_run(args: argparse.Namespace) -> int:
         emit(failure, args.pretty)
         return 0
 
+    # --save-body CLI flag: set bodies.dir to result path (or temp default).
+    if args.save_body and not args.bodies_dir:
+        result_path = config["result"].get("path", ".")
+        if isinstance(result_path, str):
+            config["result"]["bodies"]["dir"] = result_path
+        else:
+            config["result"]["bodies"]["dir"] = _default_bodies_dir()
+
     result = run_script(
         ast,
         script_vars=script_vars,
@@ -266,6 +275,10 @@ def build_parser() -> argparse.ArgumentParser:
     pr.add_argument("--bodies-dir", dest="bodies_dir",
                     help="Directory for request/response body files. "
                          "Defaults to $LACE_BODIES_DIR or <tmp>/lacelang-bodies.")
+    pr.add_argument("--save-body", dest="save_body",
+                    action="store_true", default=False,
+                    help="Enable response body file saving "
+                         "(sets result.bodies.dir to the result path).")
     pr.set_defaults(func=cmd_run)
 
     return p

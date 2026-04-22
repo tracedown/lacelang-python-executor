@@ -90,12 +90,14 @@ class _Env:
         bodies_dir: str,
         registry: ExtensionRegistry,
         user_agent: str | None = None,
+        save_bodies: bool = False,
     ) -> None:
         self.script_vars = script_vars
         self.run_vars: dict[str, Any] = {}
         self.prev = prev or {}
         self.this: dict[str, Any] | None = None
         self.bodies_dir = bodies_dir
+        self.save_bodies = save_bodies
         # Cookie jars keyed by jar name. "__default__" is the inherited jar.
         self.cookie_jars: dict[str, dict[str, str]] = {"__default__": {}}
         self.registry = registry
@@ -124,15 +126,21 @@ def run_script(
     user_agent: str | None = None,
     config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    # Resolve bodies dir: explicit arg > config result.bodies.dir > env default.
+    # Resolve bodies dir: --bodies-dir arg > config result.bodies.dir > false.
+    # A path string means save bodies; False means don't save.
     if bodies_dir:
-        dir_ = bodies_dir
+        resolved_bodies_dir = bodies_dir
     elif config and isinstance(config.get("result"), dict):
         cfg_dir = (config["result"].get("bodies") or {}).get("dir")
-        dir_ = cfg_dir if isinstance(cfg_dir, str) and cfg_dir else _default_bodies_dir()
+        resolved_bodies_dir = cfg_dir if isinstance(cfg_dir, str) and cfg_dir else False
     else:
-        dir_ = _default_bodies_dir()
-    os.makedirs(dir_, exist_ok=True)
+        resolved_bodies_dir = False
+
+    save_bodies = isinstance(resolved_bodies_dir, str)
+    if save_bodies:
+        os.makedirs(resolved_bodies_dir, exist_ok=True)
+    else:
+        resolved_bodies_dir = _default_bodies_dir()  # placeholder, won't be used
 
     # Spec §11: forward the `[extensions]` subtree of lace.config so each
     # rule's `config` base sees per-extension settings.
@@ -142,7 +150,8 @@ def run_script(
         extension_paths or [],
         extension_config=ext_cfg,
     )
-    env = _Env(script_vars or {}, prev, dir_, registry, user_agent=user_agent)
+    env = _Env(script_vars or {}, prev, resolved_bodies_dir, registry,
+               user_agent=user_agent, save_bodies=save_bodies)
     # Spec §11: executor.maxRedirects is the default when a call omits
     # redirects.max. Stash on env so _run_call can consult it without being
     # threaded through every helper.
@@ -353,12 +362,6 @@ def _run_call(
     follow = resolved_cfg["redirects"]["follow"]
     max_redirects = int(resolved_cfg["redirects"]["max"])
 
-    # Request body written to file too (for request.body_path)
-    request_ct = headers.get("Content-Type") or body_ct
-    request_body_path = _write_body_file(env, body_bytes, request=True,
-                                         content_type=request_ct,
-                                         call_index=idx)
-
     # Issue request, handling redirects + retries
     http_result, final_url, redirect_hops, redirect_exceeded = \
         _issue_with_redirects_and_retries(
@@ -380,7 +383,6 @@ def _run_call(
         "url": url,
         "method": method,
         "headers": headers,
-        "bodyPath": request_body_path,
     }
 
     # Spec §3.7: redirects array is every hop *after* the initial URL.
@@ -423,16 +425,21 @@ def _run_call(
         # Spec §4.2 + §15.12: the `bodySize` scope also gates capture —
         # if the response exceeds the declared threshold, skip writing
         # the body file and record bodyNotCapturedReason="bodyTooLarge".
+        # When save_bodies is False, body files are never written.
         body_cap = _body_capture_limit(call.get("chain") or {}, env)
         body_too_large = body_cap is not None and len(resp.body) > body_cap
-        if body_too_large:
+        if not env.save_bodies:
+            body_path = None
+        elif body_too_large:
             body_path = None
         else:
             body_path = _write_body_file(env, resp.body, request=False,
                                          content_type=resp_ct,
                                          call_index=idx)
         response_rec = _build_response_rec(resp, body_path)
-        if body_too_large:
+        if not env.save_bodies:
+            response_rec["bodyNotCapturedReason"] = "notRequested"
+        elif body_too_large:
             response_rec["bodyNotCapturedReason"] = "bodyTooLarge"
         elif body_path is None:
             response_rec["bodyNotCapturedReason"] = "notRequested"

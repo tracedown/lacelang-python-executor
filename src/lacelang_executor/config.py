@@ -24,7 +24,7 @@ Returns a flat dict::
         },
         "result": {
             "path": str | bool,
-            "bodies": {"dir": str},
+            "bodies": {"dir": str | bool},
         },
         "extensions": { "<name>": {...}, ... },
     }
@@ -247,13 +247,13 @@ def _apply_defaults(cfg: dict[str, Any]) -> dict[str, Any]:
     bodies = result.get("bodies") or {}
     if not isinstance(bodies, dict):
         raise ConfigError("config [result.bodies] must be a table")
-    # Default bodies dir: result.path when it's a real directory string,
-    # else $LACE_BODIES_DIR, else _DEFAULT_RESULT_PATH.
-    if isinstance(result_path, str):
-        default_bodies_dir = result_path
-    else:
-        default_bodies_dir = os.environ.get("LACE_BODIES_DIR") or _DEFAULT_RESULT_PATH
-    bodies_dir = bodies.get("dir", default_bodies_dir)
+    # result.bodies.dir: path string = save there, false = don't save (default).
+    bodies_dir = bodies.get("dir", False)
+    if isinstance(bodies_dir, str) and bodies_dir.lower() == "false":
+        bodies_dir = False
+    env_bodies_dir = os.environ.get("LACE_BODIES_DIR")
+    if env_bodies_dir is not None:
+        bodies_dir = env_bodies_dir
 
     ext_block = cfg.get("extensions") or {}
     if not isinstance(ext_block, dict):

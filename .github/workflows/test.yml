@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    if: "!startsWith(github.event.pull_request.title, 'WIP:')"
+    if: github.repository == 'tracedown/lacelang-python-executor' && !startsWith(github.event.pull_request.title, 'WIP:')
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -30,3 +30,24 @@ jobs:
 
       - name: Run tests
         run: pytest tests/ -x -q --tb=short
+
+  conformance:
+    if: github.repository == 'tracedown/lacelang-python-executor' && !startsWith(github.event.pull_request.title, 'WIP:')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install validator dependency
+        run: pip install git+https://github.com/tracedown/lacelang-python-validator.git
+      - name: Install package
+        run: pip install -e .
+      - name: Clone lacelang spec repo
+        run: git clone --depth 1 https://github.com/tracedown/lacelang.git ../lacelang
+      - name: Install OpenSSL dev
+        run: sudo apt-get update && sudo apt-get install -y libssl-dev
+      - name: Build conformance harness
+        run: cd ../lacelang/testkit/src && make
+      - name: Run conformance suite
+        run: ../lacelang/testkit/src/build/lace-conformance -m lace-executor.toml --vectors ../lacelang/testkit/vectors --certs-dir ../lacelang/testkit/certs

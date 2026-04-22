@@ -187,7 +187,7 @@ maxTimeoutMs = 60000           # overridden
 
 [lace.config.production]
 [lace.config.production.executor]
-user_agent = "lace-probe/0.9.0 (acme-platform)"
+user_agent = "lace-probe/0.9.1 (acme-platform)"
 ```
 
 Resolution by constructor arguments:
