@@ -49,5 +49,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y libssl-dev
       - name: Build conformance harness
         run: cd ../lacelang/testkit/src && make
+      - name: Generate TLS test certs
+        run: mkdir -p /tmp/lace-certs && ../lacelang/testkit/certs/generate-certs.sh /tmp/lace-certs
       - name: Run conformance suite
-        run: ../lacelang/testkit/src/build/lace-conformance -m lace-executor.toml --vectors ../lacelang/testkit/vectors --certs-dir ../lacelang/testkit/certs
+        run: ../lacelang/testkit/src/build/lace-conformance -m lace-executor.toml --vectors ../lacelang/testkit/vectors --certs-dir /tmp/lace-certs
