@@ -3,8 +3,6 @@ name: Tests
 on:
   pull_request:
     branches: [main]
-  push:
-    branches: [main]
 
 jobs:
   test:
@@ -13,25 +11,20 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-
       - name: Install validator dependency
         run: pip install git+https://github.com/tracedown/lacelang-python-validator.git
-
       - name: Install executor
         run: pip install -e ".[dev]"
-
       - name: Run tests
         run: pytest tests/ -x -q --tb=short
 
   conformance:
+    needs: test
     if: github.repository == 'tracedown/lacelang-python-executor' && !startsWith(github.event.pull_request.title, 'WIP:')
     runs-on: ubuntu-latest
     steps:
@@ -53,3 +46,16 @@ jobs:
         run: mkdir -p /tmp/lace-certs && sh ../lacelang/testkit/certs/generate-certs.sh /tmp/lace-certs
       - name: Run conformance suite
         run: ../lacelang/testkit/src/build/lace-conformance -m lace-executor.toml --vectors ../lacelang/testkit/vectors --certs-dir /tmp/lace-certs
+
+  build-check:
+    needs: conformance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build distributions
+        run: pip install build twine && python -m build
+      - name: Check distributions
+        run: twine check dist/*

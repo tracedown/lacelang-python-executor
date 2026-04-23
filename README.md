@@ -16,24 +16,16 @@ separation rule.
 
 ## Install
 
-Not published to PyPI yet. Install from source:
-
 ```bash
-# 1. Install the validator (required dependency)
-pip install git+https://github.com/tracedown/lacelang-python-validator.git
-
-# 2. Install the executor
-pip install git+https://github.com/tracedown/lacelang-python-executor.git
+pip install lacelang-executor
 ```
 
-Or from local clones:
+This automatically installs `lacelang-validator` as a dependency.
+
+Or from source:
 
 ```bash
-git clone https://github.com/tracedown/lacelang-python-validator.git
-git clone https://github.com/tracedown/lacelang-python-executor.git
-
-pip install ./lacelang-python-validator
-pip install ./lacelang-python-executor
+pip install git+https://github.com/tracedown/lacelang-python-executor.git
 ```
 
 ## Usage
