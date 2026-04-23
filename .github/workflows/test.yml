@@ -36,16 +36,18 @@ jobs:
         run: pip install git+https://github.com/tracedown/lacelang-python-validator.git
       - name: Install package
         run: pip install -e .
-      - name: Clone lacelang spec repo
-        run: git clone --depth 1 https://github.com/tracedown/lacelang.git ../lacelang
-      - name: Install OpenSSL dev
-        run: sudo apt-get update && sudo apt-get install -y libssl-dev
-      - name: Build conformance harness
-        run: cd ../lacelang/testkit/src && make
+      - name: Download conformance harness
+        run: |
+          gh release download testkit-v0.9.1 -R tracedown/lacelang -p 'lace-conformance-linux-x86_64'
+          chmod +x lace-conformance-linux-x86_64
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Clone test certs
+        run: git clone --depth 1 --filter=blob:none --sparse https://github.com/tracedown/lacelang.git ../lacelang && cd ../lacelang && git sparse-checkout set testkit/certs
       - name: Generate TLS test certs
         run: mkdir -p /tmp/lace-certs && sh ../lacelang/testkit/certs/generate-certs.sh /tmp/lace-certs
       - name: Run conformance suite
-        run: ../lacelang/testkit/src/build/lace-conformance -m lace-executor.toml --vectors ../lacelang/testkit/vectors --certs-dir /tmp/lace-certs
+        run: ./lace-conformance-linux-x86_64 -m lace-executor.toml --certs-dir /tmp/lace-certs
 
   build-check:
     needs: conformance
