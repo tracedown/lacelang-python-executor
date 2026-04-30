@@ -17,5 +17,3 @@ timeout_seconds = 30
 # sibling install or enabling feature flags.
 [adapter.env]
 # LACE_BODIES_DIR = "/tmp/lace-bodies"
-[conformance]
-omit = ["extensions"]
