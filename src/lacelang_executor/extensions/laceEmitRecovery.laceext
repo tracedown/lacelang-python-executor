@@ -1,0 +1,38 @@
+# laceEmitRecovery — recovery notification for Lace
+#
+# Emits a notification when a probe recovers (transitions from
+# failure/timeout to success). Depends on laceNotifications for
+# the notification dispatch mechanism.
+#
+# Only fires when `prev` is available and had a non-success outcome.
+# First runs (prev is null) are skipped — there is no transition to
+# detect. The "went down" direction is already covered by
+# laceNotifications assertion failure notifications.
+#
+# Bundled with every Lace executor as `builtin:laceEmitRecovery`.
+
+[extension]
+name    = "laceEmitRecovery"
+version = "1.0.0"
+require = ["laceNotifications"]
+
+# ── Rules ─────────────────────────────────────────────────────────────
+
+[[rules.rule]]
+name = "emit_recovery"
+on   = ["script"]
+body = """
+when not is_null(prev)
+when not is_null(prev.outcome)
+let $was_down = prev.outcome eq "failure" or prev.outcome eq "timeout"
+when $was_down
+when result.outcome eq "success"
+let $notif = is_null(config.notification) ? text(config.recovery_message) : config.notification
+laceNotifications.pushNotification({
+  callIndex:      -1,
+  conditionIndex: -1,
+  trigger:        "recovered",
+  scope:          null,
+  notification:   $notif
+})
+"""
