@@ -38,7 +38,7 @@ jobs:
         run: pip install -e .
       - name: Download conformance harness
         run: |
-          gh release download testkit-v0.9.1 -R tracedown/lacelang -p 'lace-conformance-linux-x86_64'
+          gh release download --latest -R tracedown/lacelang -p 'lace-conformance-linux-x86_64'
           chmod +x lace-conformance-linux-x86_64
         env:
           GH_TOKEN: ${{ github.token }}
