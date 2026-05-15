@@ -40,6 +40,7 @@ except ImportError:  # pragma: no cover
 BUILTIN_EXTENSIONS: dict[str, str] = {
     "laceNotifications":  "laceNotifications.laceext",
     "laceBaseline":       "laceBaseline.laceext",
+    "laceEmitRecovery":   "laceEmitRecovery.laceext",
     "notifCounter":       "notifCounter.laceext",
     "notifWatch":         "notifWatch.laceext",
     "notifRelay":         "notifRelay.laceext",

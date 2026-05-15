@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lacelang-executor"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Reference Python executor for the Lace probe scripting language. Depends on lacelang-validator for parsing and semantic checks."
 readme = "README.md"
 license = { text = "Apache-2.0" }
@@ -43,6 +43,9 @@ lacelang-executor = "lacelang_executor.cli:main"
 Homepage = "https://github.com/tracedown/lacelang-python-executor"
 Validator = "https://github.com/tracedown/lacelang-python-validator"
 Specification = "https://github.com/tracedown/lacelang"
+
+[tool.setuptools.dynamic]
+version = {attr = "lacelang_executor.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["src"]

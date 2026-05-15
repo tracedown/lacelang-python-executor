@@ -103,7 +103,7 @@ return map_get(notif_cfg.ops, $rel)
 params = ["options", "prev_outcome"]
 body   = """
 when is_null(options)
-return false
+return prev_outcome eq "failed"
 
 when options.silentOnRepeat neq true
 return false
