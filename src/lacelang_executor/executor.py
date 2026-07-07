@@ -487,6 +487,7 @@ def _run_call(
             "response": response_rec,
             "assertions": assertions,
             "config": resolved_cfg,
+            "error": error,
         },
         "prev": env.prev,
     })

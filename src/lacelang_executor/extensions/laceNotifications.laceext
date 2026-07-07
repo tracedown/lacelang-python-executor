@@ -277,3 +277,28 @@ emit result.actions.notifications <- {
   notification:    text(config.timeout_message)
 }
 """
+
+# Connection-level failures (DNS, refused, TLS, …) never evaluate assertions,
+# so the scope/condition rules above can't see them. Emit a default
+# structured notification on the transition into the error state: fires when
+# the same call had no error on the previous run (or there is no previous
+# run), stays silent while the error persists. Timeouts are excluded — the
+# timeout rules own that outcome.
+[[rules.rule]]
+name = "call_error_default_notifications"
+on   = ["call"]
+body = """
+when call.outcome eq "failure"
+when not is_null(call.error)
+let $prev_error = prev?.calls[call.index]?.error
+when is_null($prev_error)
+emit result.actions.notifications <- {
+  callIndex:      call.index,
+  conditionIndex: -1,
+  trigger:         "error",
+  notification:    structured({
+    error: call.error
+  })
+}
+"""
+
