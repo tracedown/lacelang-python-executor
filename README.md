@@ -1,5 +1,7 @@
 # lacelang-executor (python)
 
+[![PyPI](https://img.shields.io/pypi/v/lacelang-executor)](https://pypi.org/project/lacelang-executor/)
+
 Canonical Python executor for [Lace](https://github.com/tracedown/lacelang) —
 the reference implementation with **100% spec conformance**. Runs `.lace`
 scripts against real HTTP endpoints and emits ProbeResult JSON.
