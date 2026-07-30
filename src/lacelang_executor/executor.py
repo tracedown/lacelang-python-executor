@@ -1403,6 +1403,17 @@ def _eval_binary(node: dict[str, Any], env: _Env) -> Any:
     return None
 
 
+def _raw_str(v: Any) -> str:
+    """Raw-string coercion for `includes` (spec §8). Strings pass through; null →
+    empty string; everything else (bool/number/array/object) → compact JSON —
+    which already yields `true`/`false` for booleans and bare digits for ints."""
+    if v is None:
+        return ""
+    if isinstance(v, str):
+        return v
+    return json.dumps(v, separators=(",", ":"), ensure_ascii=False)
+
+
 def _eval_func(node: dict[str, Any], env: _Env) -> Any:
     name = node["name"]
     args_nodes = node.get("args", [])
@@ -1411,6 +1422,15 @@ def _eval_func(node: dict[str, Any], env: _Env) -> Any:
     if name == "schema":
         val = _eval(args_nodes[0], env) if args_nodes else None
         return {"__lace_schema__": True, "schema": val}
+    # Assert-only helpers (spec §8). The validator guarantees they appear only
+    # inside `.assert()` conditions, so no context check is needed here.
+    if name == "count":
+        val = _eval(args_nodes[0], env) if args_nodes else None
+        return len(val) if isinstance(val, list) else 1
+    if name == "includes":
+        search = _eval(args_nodes[0], env) if len(args_nodes) > 0 else None
+        target = _eval(args_nodes[1], env) if len(args_nodes) > 1 else None
+        return _raw_str(search) in _raw_str(target)
     # Extension-registered tag constructors (from .laceext [types.*] one_of).
     if name in env.tag_ctors:
         args = [_eval(a, env) for a in args_nodes]
