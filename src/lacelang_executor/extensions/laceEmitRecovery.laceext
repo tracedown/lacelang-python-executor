@@ -9,14 +9,57 @@
 # detect. The "went down" direction is already covered by
 # laceNotifications assertion failure notifications.
 #
+# The recovery message resolves in precedence order:
+#   1. a `recovery` option declared in the script itself, on any
+#      expect/check scope or assert condition:
+#        options: { recovery: { notification: template("back-up") } }
+#        options: { recovery: { notification: "plain text" } }
+#      A bare string is shorthand for text(...). When several scopes
+#      declare one, the last evaluated declaration wins.
+#   2. the extension config `notification` value (lace.config override),
+#   3. the extension config `recovery_message` text default.
+#
 # Bundled with every Lace executor as `builtin:laceEmitRecovery`.
 
 [extension]
 name    = "laceEmitRecovery"
-version = "1.0.0"
+version = "1.1.0"
 require = ["laceNotifications"]
 
+# ── Schema additions ──────────────────────────────────────────────────
+
+# `recovery` rides the same options blocks laceNotifications reads its
+# `notification` from; its `notification` field takes the same values.
+[schema.scope_options]
+recovery = { type = "any" }
+
+[schema.condition_options]
+recovery = { type = "any" }
+
 # ── Rules ─────────────────────────────────────────────────────────────
+
+# Capture a script-declared recovery notification while scopes evaluate;
+# the script-level emit rule below reads it back via runVars.
+
+[[rules.rule]]
+name = "capture_recovery_scope"
+on   = ["expect", "check"]
+body = """
+let $r = scope.options?.recovery?.notification
+when not is_null($r)
+let $val = type_of($r) eq "string" ? text($r) : $r
+emit result.runVars <- { "laceEmitRecovery.recoveryNotification": $val }
+"""
+
+[[rules.rule]]
+name = "capture_recovery_condition"
+on   = ["assert"]
+body = """
+let $r = condition.options?.recovery?.notification
+when not is_null($r)
+let $val = type_of($r) eq "string" ? text($r) : $r
+emit result.runVars <- { "laceEmitRecovery.recoveryNotification": $val }
+"""
 
 [[rules.rule]]
 name = "emit_recovery"
@@ -27,7 +70,9 @@ when not is_null(prev.outcome)
 let $was_down = prev.outcome eq "failure" or prev.outcome eq "timeout"
 when $was_down
 when result.outcome eq "success"
-let $notif = is_null(config.notification) ? text(config.recovery_message) : config.notification
+let $declared = map_get(result.runVars, "laceEmitRecovery.recoveryNotification")
+let $fallback = is_null(config.notification) ? text(config.recovery_message) : config.notification
+let $notif = is_null($declared) ? $fallback : $declared
 laceNotifications.pushNotification({
   callIndex:      -1,
   conditionIndex: -1,
