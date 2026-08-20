@@ -22,7 +22,7 @@ classifiers = [
     "Topic :: Software Development :: Interpreters",
 ]
 dependencies = [
-    "lacelang-validator>=0.1,<0.2",
+    "lacelang-validator>=0.1.4,<0.2",
     "tomli>=2.0; python_version<'3.11'",
 ]
 
