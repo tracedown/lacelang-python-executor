@@ -17,17 +17,47 @@ import socket
 import ssl
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import urlsplit
 
+# An egress guard hook. Called with (host, port, resolved_ip) immediately
+# before the socket connects to `resolved_ip`, on the INITIAL request and on
+# every redirect hop. Raise `EgressBlocked` to refuse the connection; return
+# normally to allow it. Because the vetted address is the exact one connected
+# to (no second resolution), a guard both vets the target and pins it — closing
+# the DNS-rebinding / redirect-to-internal window.
+#
+# When no guard is configured the default behaviour is unchanged (allow all),
+# so conformance is unaffected. The real blocklist lives in the host that
+# configures the guard (e.g. the probe agent), not here.
+BeforeConnect = Callable[[str, int, str], None]
 
-def probe_tls_verify(url: str, timeout: float) -> None:
+
+class EgressBlocked(OSError):
+    """Raised by a ``before_connect`` egress guard to refuse a connection to a
+    disallowed address (loopback, link-local, private ranges, internal hosts…).
+
+    Subclasses ``OSError`` so it surfaces through the normal transport-error
+    path in :func:`send_request` as a call failure — it never escapes the HTTP
+    layer as an uncaught exception.
+    """
+
+
+def probe_tls_verify(
+    url: str,
+    timeout: float,
+    before_connect: BeforeConnect | None = None,
+) -> None:
     """Speculatively open a verified TLS connection to `url` to check whether
     the cert chain would validate. Raises ssl.SSLError / ssl.CertificateError
     / socket.error when the cert is invalid; returns silently otherwise.
 
     Used by the executor when rejectInvalidCerts=false: we still want to know
     whether the cert WOULD have failed so we can surface a warning.
+
+    When an egress `before_connect` guard is supplied the resolved address is
+    vetted (and pinned) before this speculative connection is opened, so the
+    warning-only probe cannot itself be turned into an SSRF vector.
     """
     parts = urlsplit(url)
     if parts.scheme != "https":
@@ -36,9 +66,32 @@ def probe_tls_verify(url: str, timeout: float) -> None:
     port = parts.port or 443
     ctx = ssl.create_default_context()
     try:
-        with socket.create_connection((host, port), timeout=timeout) as raw:
-            with ctx.wrap_socket(raw, server_hostname=host):
-                pass
+        infos = socket.getaddrinfo(host, port, 0, socket.SOCK_STREAM)
+        err: Exception | None = None
+        for af, st, proto, _, sa in infos:
+            if before_connect is not None:
+                # Vet before connecting; a rejection (EgressBlocked) aborts
+                # the whole probe rather than falling through to another
+                # address — see _TimedHTTPConnection.connect for the rationale.
+                before_connect(host, port, sa[0])
+            raw = socket.socket(af, st, proto)
+            try:
+                raw.settimeout(timeout)
+                raw.connect(sa)
+            except OSError as e:
+                raw.close()
+                err = e
+                continue
+            try:
+                with ctx.wrap_socket(raw, server_hostname=host):
+                    pass
+            finally:
+                raw.close()
+            return
+        if err is not None:
+            raise err
+    except EgressBlocked:
+        raise
     except (ssl.SSLError, ssl.CertificateError):
         raise
     except socket.error:
@@ -142,10 +195,12 @@ def _format_certificate(cert: dict[str, Any]) -> dict[str, Any]:
 class _TimedHTTPConnection(http.client.HTTPConnection):
     """HTTPConnection that records DNS + connect times plus DNS metadata."""
 
-    def __init__(self, *a: Any, timings: Timings, dns: DnsMeta, **kw: Any) -> None:
+    def __init__(self, *a: Any, timings: Timings, dns: DnsMeta,
+                 before_connect: BeforeConnect | None = None, **kw: Any) -> None:
         super().__init__(*a, **kw)
         self._t = timings
         self._dns = dns
+        self._before_connect = before_connect
 
     def connect(self) -> None:
         t0 = time.perf_counter()
@@ -156,6 +211,14 @@ class _TimedHTTPConnection(http.client.HTTPConnection):
 
         err: Exception | None = None
         for af, st, proto, _, sa in infos:
+            # Vet the concrete address BEFORE connecting, and outside the
+            # try/except below so a rejection (EgressBlocked) aborts the whole
+            # request rather than falling through to the next candidate — an
+            # attacker must not be able to pad the DNS answer with one allowed
+            # IP to slip an internal one past the guard. The address vetted is
+            # the address connected to (pinned; no re-resolution).
+            if self._before_connect is not None:
+                self._before_connect(self.host, self.port, sa[0])
             sock = socket.socket(af, st, proto)
             try:
                 sock.settimeout(self.timeout)
@@ -177,13 +240,15 @@ class _TimedHTTPSConnection(http.client.HTTPSConnection):
     """HTTPSConnection with DNS + connect + TLS timings plus DNS/TLS metadata."""
 
     def __init__(self, *a: Any, timings: Timings, dns: DnsMeta,
-                 tls_meta_out: list[TlsMeta | None], **kw: Any) -> None:
+                 tls_meta_out: list[TlsMeta | None],
+                 before_connect: BeforeConnect | None = None, **kw: Any) -> None:
         super().__init__(*a, **kw)
         self._t = timings
         self._dns = dns
         # List-as-out-param so the wrapping module can read it back after
         # the SSL handshake completes inside this method.
         self._tls_out = tls_meta_out
+        self._before_connect = before_connect
 
     def connect(self) -> None:
         t0 = time.perf_counter()
@@ -194,6 +259,11 @@ class _TimedHTTPSConnection(http.client.HTTPSConnection):
 
         err: Exception | None = None
         for af, st, proto, _, sa in infos:
+            # Vet the concrete address before connecting (see the plain-HTTP
+            # connection for the fail-closed rationale). The vetted address is
+            # the one the TLS handshake runs against — pinned, no re-resolution.
+            if self._before_connect is not None:
+                self._before_connect(self.host, self.port, sa[0])
             raw = socket.socket(af, st, proto)
             try:
                 raw.settimeout(self.timeout)
@@ -234,8 +304,15 @@ def send_request(
     body: bytes | None,
     timeout: float,
     verify_tls: bool = True,
+    before_connect: BeforeConnect | None = None,
 ) -> HttpResult:
-    """Issue one request. No redirect following — caller iterates."""
+    """Issue one request. No redirect following — caller iterates.
+
+    `before_connect`, when supplied, is the egress guard invoked with the
+    concrete resolved address just before the socket connects (see
+    :data:`BeforeConnect`). A guard rejection surfaces as a normal call
+    failure. When omitted, behaviour is unchanged.
+    """
     parts = urlsplit(url)
     if parts.scheme not in ("http", "https"):
         return HttpResult(error=f"unsupported scheme: {parts.scheme!r}")
@@ -265,10 +342,12 @@ def send_request(
             pass
         conn = _TimedHTTPSConnection(host, port, timeout=timeout, context=ctx,
                                      timings=timings, dns=dns_meta,
-                                     tls_meta_out=tls_slot)
+                                     tls_meta_out=tls_slot,
+                                     before_connect=before_connect)
     else:
         conn = _TimedHTTPConnection(host, port, timeout=timeout,
-                                    timings=timings, dns=dns_meta)
+                                    timings=timings, dns=dns_meta,
+                                    before_connect=before_connect)
 
     try:
         conn.request(method, path, body=body, headers=headers)

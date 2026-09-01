@@ -138,6 +138,8 @@ class LaceProbe:
             extension_paths=self._executor._extension_paths or None,
             config=self._executor._config,
             user_agent=self._executor._config["executor"].get("user_agent"),
+            before_connect=self._executor._before_connect,
+            force_verify_tls=self._executor._force_verify_tls,
         )
 
         if self._executor.track_prev:
@@ -189,6 +191,18 @@ class LaceExecutor:
     track_prev:
         When ``True`` (default), each ``LaceProbe`` stores its last
         result and injects it as ``prev`` on the next ``run()``.
+    before_connect:
+        Optional egress guard ``(host, port, resolved_ip) -> None``. Invoked
+        just before the socket connects, on the initial request and on every
+        redirect hop, with the concrete address about to be dialled. Raise
+        ``lacelang_executor.http_timing.EgressBlocked`` to refuse a connection
+        (e.g. to an internal/private target). ``None`` (default) allows all —
+        the spec/conformance behaviour. Hosts (like the probe agent) supply a
+        guard to enforce a target-egress policy in the process that connects.
+    force_verify_tls:
+        When ``True``, a script's ``security.rejectInvalidCerts=false`` opt-out
+        is ignored and TLS verification is always enforced. Default ``False``
+        keeps the spec default. A host policy for hardened deployments.
     """
 
     def __init__(
@@ -199,6 +213,8 @@ class LaceExecutor:
         env: str | None = None,
         extensions: list[str] | None = None,
         track_prev: bool = True,
+        before_connect: Any = None,
+        force_verify_tls: bool = False,
     ) -> None:
         # Resolve the lace root directory.
         if root is not None:
@@ -215,6 +231,9 @@ class LaceExecutor:
 
         self._config = load_config(explicit_path=config_path, env_selector=env)
         self.track_prev = track_prev
+        # Host-supplied security seams (spec-neutral; defaults are no-ops).
+        self._before_connect = before_connect
+        self._force_verify_tls = force_verify_tls
 
         # Built-in extensions from config + constructor arg.
         cfg_exts = list(self._config["executor"]["extensions"])
@@ -394,6 +413,8 @@ class LaceExecutor:
             extension_paths=self._extension_paths or None,
             config=self._config,
             user_agent=self._config["executor"].get("user_agent"),
+            before_connect=self._before_connect,
+            force_verify_tls=self._force_verify_tls,
         )
 
     # ── Internal ────────────────────────────────────────────────────

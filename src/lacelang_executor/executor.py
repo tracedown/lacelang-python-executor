@@ -92,6 +92,8 @@ class _Env:
         registry: ExtensionRegistry,
         user_agent: str | None = None,
         save_bodies: bool = False,
+        before_connect: Any = None,
+        force_verify_tls: bool = False,
     ) -> None:
         self.script_vars = script_vars
         self.run_vars: dict[str, Any] = {}
@@ -111,6 +113,16 @@ class _Env:
         # attribute is set post-construction so tests / direct callers that
         # bypass run_script still work with the spec default of 10.
         self.default_max_redirects: int = 10
+        # Optional host-supplied egress guard (spec-neutral seam). When set it
+        # is invoked with the concrete resolved address before every connect —
+        # initial request and every redirect hop — so a host can refuse
+        # connections to internal/private targets (SSRF). None → allow all,
+        # which keeps the spec/conformance default behaviour.
+        self.before_connect = before_connect
+        # When True, a script's `security.rejectInvalidCerts=false` opt-out is
+        # ignored and TLS verification is enforced regardless (a host policy for
+        # hosted deployments). Default False keeps the spec default intact.
+        self.force_verify_tls = force_verify_tls
 
 
 # ═════════════════════════════════════════════════════════════════
@@ -126,6 +138,8 @@ def run_script(
     extension_paths: list[str] | None = None,
     user_agent: str | None = None,
     config: dict[str, Any] | None = None,
+    before_connect: Any = None,
+    force_verify_tls: bool = False,
 ) -> dict[str, Any]:
     # Resolve bodies dir: --bodies-dir arg > config result.bodies.dir > false.
     # A path string means save bodies; False means don't save.
@@ -152,7 +166,8 @@ def run_script(
         extension_config=ext_cfg,
     )
     env = _Env(script_vars or {}, prev, resolved_bodies_dir, registry,
-               user_agent=user_agent, save_bodies=save_bodies)
+               user_agent=user_agent, save_bodies=save_bodies,
+               before_connect=before_connect, force_verify_tls=force_verify_tls)
     # Spec §11: executor.maxRedirects is the default when a call omits
     # redirects.max. Stash on env so _run_call can consult it without being
     # threaded through every helper.
@@ -347,6 +362,15 @@ def _run_call(
 
     # TLS verification — read from resolved config (defaults already applied).
     verify = resolved_cfg["security"]["rejectInvalidCerts"]
+    # Host policy override (spec-neutral): a host may refuse a script's
+    # `rejectInvalidCerts=false` opt-out and enforce verification regardless.
+    # Default (force_verify_tls=False) leaves the spec behaviour untouched.
+    if not verify and env.force_verify_tls:
+        verify = True
+        warnings.append(
+            "rejectInvalidCerts=false ignored by host policy; "
+            "TLS verification enforced"
+        )
     if not verify:
         # Spec §3.2: when rejectInvalidCerts=false, TLS errors become a
         # warning (instead of hard-failing). Detect by probing with
@@ -354,8 +378,12 @@ def _run_call(
         # through with verify disabled.
         if url.startswith("https://"):
             try:
-                from .http_timing import probe_tls_verify
-                probe_tls_verify(url, timeout_s)
+                from .http_timing import EgressBlocked, probe_tls_verify
+                probe_tls_verify(url, timeout_s, before_connect=env.before_connect)
+            except EgressBlocked:
+                # An egress-blocked target must fail the call, not warn — let
+                # the real request below raise it through the normal path.
+                pass
             except Exception as e:
                 warnings.append(f"TLS certificate invalid: {e}; proceeding with rejectInvalidCerts=false")
 
@@ -528,6 +556,11 @@ def _issue_with_redirects_and_retries(
     env: _Env | None = None,
 ) -> tuple[HttpResult, str, list[str], bool]:
     """Returns (result, final_url, hops, redirect_limit_exceeded)."""
+    # Egress guard (spec-neutral). Applied to the initial request AND to every
+    # redirect hop below, because each hop is issued through this same
+    # send_request path — so a 30x pointing at an internal address is vetted and
+    # refused exactly like an initial internal target would be.
+    before_connect = env.before_connect if env is not None else None
     attempt = 0
     while True:
         hops: list[str] = [url]
@@ -536,7 +569,8 @@ def _issue_with_redirects_and_retries(
         cur_body = body
         redirects = 0
         while True:
-            r = send_request(cur_method, cur_url, headers, cur_body, timeout_s, verify_tls=verify)
+            r = send_request(cur_method, cur_url, headers, cur_body, timeout_s,
+                             verify_tls=verify, before_connect=before_connect)
             if r.response is None:
                 break
             status = r.response.status
