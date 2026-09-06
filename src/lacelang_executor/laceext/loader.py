@@ -15,14 +15,10 @@ Parses all DSL bodies eagerly so errors surface at load, not at dispatch.
 from __future__ import annotations
 
 import sys
+import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    import tomli as tomllib  # type: ignore[import-not-found]
 
 from lacelang_executor.laceext.dsl_parser import parse_function_body, parse_rule_body
 

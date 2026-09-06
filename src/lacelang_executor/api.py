@@ -293,11 +293,7 @@ class LaceExecutor:
         if not ext.config_path:
             return
         try:
-            import sys
-            if sys.version_info >= (3, 11):
-                import tomllib
-            else:
-                import tomli as tomllib  # type: ignore[import-not-found]
+            import tomllib
             with open(ext.config_path, "rb") as f:
                 raw = tomllib.load(f)
             # The [config] section of the extension config maps to

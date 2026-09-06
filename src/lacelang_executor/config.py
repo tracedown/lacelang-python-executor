@@ -35,10 +35,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-try:  # Python 3.11+
-    import tomllib as _toml  # type: ignore[import-not-found]
-except ModuleNotFoundError:  # pragma: no cover - exercised only on 3.10
-    import tomli as _toml  # type: ignore[import-not-found, no-redef]
+import tomllib as _toml
 
 
 # ──────────────────────────────────────────────────────────────────────
