@@ -20,7 +20,7 @@ import os
 import re
 import tempfile
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from http.cookies import SimpleCookie
 from typing import Any
 from urllib.parse import urlencode, urljoin, urlsplit
@@ -1516,7 +1516,7 @@ def _to_header_name(s: str) -> str:
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
 def _default_bodies_dir() -> str:

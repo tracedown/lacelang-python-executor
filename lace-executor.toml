@@ -3,7 +3,7 @@
 
 [executor]
 name        = "lacelang-executor"
-version     = "0.1.5"
+version     = "0.2.0"
 language    = "python"
 conforms_to = ">=0.9.6"
 

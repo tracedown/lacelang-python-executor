@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=84"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -8,7 +8,7 @@ dynamic = ["version"]
 description = "Reference Python executor for the Lace probe scripting language. Depends on lacelang-validator for parsing and semantic checks."
 readme = "README.md"
 license = { text = "Apache-2.0" }
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [{ name = "lacelang contributors" }]
 keywords = ["lace", "lacelang", "executor", "http", "probe", "monitoring"]
 classifiers = [
@@ -16,14 +16,14 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Interpreters",
 ]
 dependencies = [
-    "lacelang-validator>=0.1.4,<0.2",
-    "tomli>=2.0; python_version<'3.11'",
+    "lacelang-validator>=0.2.0,<0.3",
 ]
 
 [tool.setuptools.package-data]
@@ -31,9 +31,9 @@ lacelang_executor = ["extensions/*.laceext", "extensions/*.config"]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7",
-    "mypy>=1.5",
-    "ruff>=0.1",
+    "pytest>=9.1.1",
+    "mypy>=2.3.1",
+    "ruff>=0.16.6,<0.17",
 ]
 
 [project.scripts]
@@ -52,7 +52,7 @@ where = ["src"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "B", "UP"]

@@ -17,6 +17,7 @@ import socket
 import ssl
 import time
 from dataclasses import dataclass, field
+from datetime import UTC
 from typing import Any
 from urllib.parse import urlsplit
 
@@ -124,9 +125,9 @@ def _format_certificate(cert: dict[str, Any]) -> dict[str, Any]:
     def _iso(date_str: str) -> str:
         # Python gives "Jan  1 00:00:00 2026 GMT". Parse best-effort.
         try:
-            from datetime import datetime, timezone
+            from datetime import datetime
             dt = datetime.strptime(date_str, "%b %d %H:%M:%S %Y %Z")
-            return dt.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z")
+            return dt.replace(tzinfo=UTC).isoformat().replace("+00:00", "Z")
         except Exception:
             return date_str  # leave raw if parse fails
 
