@@ -1,40 +1,56 @@
 # laceNotifications — reference Lace extension
 #
-# Adds notification dispatch for assertion failures and call timeouts.
+# Adds notification dispatch for assertion failures, call timeouts and
+# connection-level errors (trigger "error").
 # Reference implementation per lace-extensions.md §12.
 #
 # Bundled with every Lace executor as `builtin:laceNotifications`.
 #
-# NOTE: lace-extensions.md §12 shows multi-line inline TOML tables which
-# are not valid TOML 1.0 (inline tables must fit on a single line). This
-# file uses standard TOML sub-tables instead. The semantic content is
-# identical to the spec example.
+# TOML 1.0 note: every inline table in this file sits on a single line.
+# Multi-line arrays of single-line inline tables are valid TOML 1.0
+# (lace-extensions.md §2.1).
 
 [extension]
 name    = "laceNotifications"
-version = "1.0.0"
+version = "1.1.0"
 
 # ── Schema additions ──────────────────────────────────────────────────────
 
 [schema.scope_options]
 silentOnRepeat = { type = "bool", default = "true" }
-notification   = { type = "notification_val" }
+notification   = { type = "notification_expr" }
 
 [schema.condition_options]
 silentOnRepeat = { type = "bool", default = "true" }
-notification   = { type = "notification_val" }
+notification   = { type = "notification_expr" }
 
+# Extension fields on call-config sub-objects are recorded under
+# `config.timeout.extensions.*` in the result and in the hook context
+# (lace-spec.md §9.2) — rules read `call.config.timeout?.extensions?.notification`.
 [schema.timeout]
-notification = { type = "notification_val" }
+notification = { type = "notification_expr" }
 
 # ── Custom types ──────────────────────────────────────────────────────────
 
+# notification_val — the resolved type that appears in result.actions.
+# Only text, template, and structured are valid in output.
 [types.notification_val]
 one_of = [
   { tag = "template",   fields = { name  = "string" } },
   { tag = "text",       fields = { value = "string" } },
+  { tag = "structured", fields = { data  = "any" } }
+]
+
+# notification_expr — the scripting-time superset used in scope/condition
+# options and in timeout.notification. Includes op_map, which the extension
+# resolves to a concrete notification_val before emitting (a bare object
+# literal is accepted as op_map shorthand). op_map never appears in the result.
+[types.notification_expr]
+one_of = [
+  { tag = "template",   fields = { name  = "string" } },
+  { tag = "text",       fields = { value = "string" } },
   { tag = "structured", fields = { data  = "any" } },
-  { tag = "op_map",     fields = { ops   = "map<string, notification_val>" } }
+  { tag = "op_map",     fields = { ops   = "map<string, notification_expr>" } }
 ]
 
 # ── Result additions ──────────────────────────────────────────────────────
@@ -71,16 +87,35 @@ emit result.actions.notifications <- {
 return event
 """
 
+# A `notification` option is either a concrete value (text / template /
+# structured), an op_map(...), or a bare `{ "404": …, "default": … }`
+# object literal — the bare form is shorthand for op_map and resolves the
+# same way. The concrete value is returned as-is.
+[functions.notif_ops]
+params = ["notif_cfg"]
+body   = """
+when notif_cfg.tag eq "op_map"
+return notif_cfg.ops
+
+return notif_cfg
+"""
+
+[functions.is_concrete]
+params = ["notif_cfg"]
+body   = """
+return notif_cfg.tag eq "template" or notif_cfg.tag eq "text" or notif_cfg.tag eq "structured"
+"""
+
 [functions.resolve_scope_notif]
 params = ["notif_cfg", "actual", "expected", "op"]
 body   = """
 when is_null(notif_cfg)
 return null
 
-when notif_cfg.tag eq "template" or notif_cfg.tag eq "text"
+when is_concrete(notif_cfg)
 return notif_cfg
 
-return map_match(notif_cfg.ops, actual, expected, op)
+return map_match(notif_ops(notif_cfg), actual, expected, op)
 """
 
 [functions.resolve_assert_notif]
@@ -89,23 +124,40 @@ body   = """
 when is_null(notif_cfg)
 return null
 
-when notif_cfg.tag eq "template" or notif_cfg.tag eq "text"
+when is_concrete(notif_cfg)
 return notif_cfg
 
 let $rel = compare(lhs, rhs)
 when is_null($rel)
 return null
 
-return map_get(notif_cfg.ops, $rel)
+return map_get(notif_ops(notif_cfg), $rel)
 """
 
+# Timeouts have no actual/expected pair, so a map form resolves to its
+# "default" entry only.
+[functions.resolve_timeout_notif]
+params = ["notif_cfg"]
+body   = """
+when is_null(notif_cfg)
+return null
+
+when is_concrete(notif_cfg)
+return notif_cfg
+
+return map_get(notif_ops(notif_cfg), "default")
+"""
+
+# silentOnRepeat defaults to true: it is only off when the script sets
+# `silentOnRepeat: false` explicitly. An options block without the key
+# behaves exactly like no options block at all.
 [functions.is_silent]
 params = ["options", "prev_outcome"]
 body   = """
 when is_null(options)
 return prev_outcome eq "failed"
 
-when options.silentOnRepeat neq true
+when options.silentOnRepeat eq false
 return false
 
 return prev_outcome eq "failed"
@@ -214,7 +266,7 @@ body = """
 when condition.outcome eq "failed"
 let $notif_cfg = condition.options?.notification
 when not is_null($notif_cfg)
-let $prev_a = prev?.calls[call.index]?.assertions[condition.index]
+let $prev_a = prev?.calls[call.index]?.assertions[? $.method eq "assert" and $.index eq condition.index]
 let $silent = is_silent(condition.options, $prev_a?.outcome)
 when not $silent
 let $notif = resolve_assert_notif($notif_cfg, condition.actualLhs, condition.actualRhs)
@@ -233,7 +285,7 @@ on   = ["assert"]
 body = """
 when condition.outcome eq "failed"
 when is_null(condition.options?.notification)
-let $prev_a = prev?.calls[call.index]?.assertions[condition.index]
+let $prev_a = prev?.calls[call.index]?.assertions[? $.method eq "assert" and $.index eq condition.index]
 let $silent = is_silent(condition.options, $prev_a?.outcome)
 when not $silent
 emit result.actions.notifications <- {
@@ -254,13 +306,15 @@ name = "timeout_custom_notifications"
 on   = ["call"]
 body = """
 when call.outcome eq "timeout"
-let $notif_cfg = call.config.timeout?.notification
+let $notif_cfg = call.config.timeout?.extensions?.notification
 when not is_null($notif_cfg)
+let $notif = resolve_timeout_notif($notif_cfg)
+when not is_null($notif)
 emit result.actions.notifications <- {
   callIndex:      call.index,
   conditionIndex: -1,
   trigger:         "timeout",
-  notification:    $notif_cfg
+  notification:    $notif
 }
 """
 
@@ -269,7 +323,7 @@ name = "timeout_default_notifications"
 on   = ["call"]
 body = """
 when call.outcome eq "timeout"
-when is_null(call.config.timeout?.notification)
+when is_null(call.config.timeout?.extensions?.notification)
 emit result.actions.notifications <- {
   callIndex:      call.index,
   conditionIndex: -1,
