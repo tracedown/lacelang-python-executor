@@ -273,7 +273,7 @@ def build_parser() -> argparse.ArgumentParser:
                     help="Overrides result.path: directory → timestamped "
                          "JSON file, file path → overwrites, 'false' → skip.")
     pr.add_argument("--bodies-dir", dest="bodies_dir",
-                    help="Directory for request/response body files. "
+                    help="Directory for response body files. "
                          "Defaults to $LACE_BODIES_DIR or <tmp>/lacelang-bodies.")
     pr.add_argument("--save-body", dest="save_body",
                     action="store_true", default=False,

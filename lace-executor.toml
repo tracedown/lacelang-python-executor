@@ -3,9 +3,9 @@
 
 [executor]
 name        = "lacelang-executor"
-version     = "0.2.0"
+version     = "0.2.1"
 language    = "python"
-conforms_to = ">=0.9.6"
+conforms_to = ">=0.9.7"
 
 [adapter]
 parse    = "python3 -m lacelang_executor parse {script}"

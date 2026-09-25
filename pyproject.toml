@@ -23,7 +23,7 @@ classifiers = [
     "Topic :: Software Development :: Interpreters",
 ]
 dependencies = [
-    "lacelang-validator>=0.2.0,<0.3",
+    "lacelang-validator>=0.2.1,<0.3",
 ]
 
 [tool.setuptools.package-data]
